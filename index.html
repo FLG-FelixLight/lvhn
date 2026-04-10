@@ -2,16 +2,25 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>High Resolution Particle Art</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Particle Art</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <style>
-        body {
+        html, body {
             margin: 0;
+            padding: 0;
             overflow: hidden;
             background: #ffffff;
+            height: 100%;
         }
+
+        body {
+            height: 100dvh; /* Khắc phục lỗi mất hình trên mobile */
+        }
+
         canvas {
             display: block;
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>
@@ -22,26 +31,41 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-// Nhận diện thiết bị
+// Phát hiện thiết bị
 const isMobile = window.innerWidth < 768;
 
-// Cấu hình chất lượng cao
+// Cấu hình tối ưu
 const CONFIG = {
-    gap: isMobile ? 1.2 : 0.8,          // Giảm gap để tăng mật độ
-    maxParticles: isMobile ? 40000 : 120000,
+    gap: isMobile ? 1.4 : 1.2, // Giữ chất lượng cao
+    maxParticles: isMobile ? 40000 : 90000,
     mouseRadius: isMobile ? 60 : 90,
-    particleSize: isMobile ? 0.9 : 0.6,
-    returnSpeed: 0.18,
+    particleSize: isMobile ? 1.1 : 0.8,
+    returnSpeed: 0.15,
     fps: isMobile ? 30 : 60
 };
 
-// Độ phân giải màn hình
+// Giới hạn DPR để tránh quá tải
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+// Lấy kích thước viewport chính xác
+function getViewportSize() {
+    if (window.visualViewport) {
+        return {
+            width: window.visualViewport.width,
+            height: window.visualViewport.height
+        };
+    }
+    return {
+        width: window.innerWidth,
+        height: window.innerHeight
+    };
+}
 
 // Thiết lập canvas
 function resizeCanvas() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const viewport = getViewportSize();
+    const width = viewport.width;
+    const height = viewport.height;
 
     canvas.width = width * DPR;
     canvas.height = height * DPR;
@@ -66,7 +90,8 @@ function setMousePosition(x, y) {
     mouse.y = y - rect.top;
 }
 
-window.addEventListener("mousemove", e => {
+// Chuột
+window.addEventListener("mousemove", (e) => {
     setMousePosition(e.clientX, e.clientY);
 });
 
@@ -75,7 +100,8 @@ window.addEventListener("mouseout", () => {
     mouse.y = null;
 });
 
-window.addEventListener("touchmove", e => {
+// Cảm ứng
+window.addEventListener("touchmove", (e) => {
     setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: true });
 
@@ -104,8 +130,11 @@ class Particle {
         this.x += this.vx;
         this.y += this.vy;
 
-        if (this.x <= 0 || this.x >= canvas.width / DPR) this.vx *= -1;
-        if (this.y <= 0 || this.y >= canvas.height / DPR) this.vy *= -1;
+        const maxX = canvas.width / DPR;
+        const maxY = canvas.height / DPR;
+
+        if (this.x <= 0 || this.x >= maxX) this.vx *= -1;
+        if (this.y <= 0 || this.y >= maxY) this.vy *= -1;
 
         if (mouse.x !== null && mouse.y !== null) {
             const dxMouse = mouse.x - this.x;
@@ -161,6 +190,7 @@ function initParticles() {
     const offsetX = (width - imgWidth) / 2;
     const offsetY = (height - imgHeight) / 2;
 
+    tempCtx.clearRect(0, 0, width, height);
     tempCtx.drawImage(
         image,
         offsetX,
@@ -222,10 +252,18 @@ function animate(timestamp) {
     }
 }
 
+// Cập nhật khi thay đổi kích thước
 window.addEventListener("resize", () => {
     resizeCanvas();
     if (image.complete) initParticles();
 });
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => {
+        resizeCanvas();
+        if (image.complete) initParticles();
+    });
+}
 </script>
 </body>
 </html>
