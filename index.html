@@ -1,192 +1,214 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <title>Particle Image Interaction</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            overflow: hidden;
-            background: white;
-        }
-        canvas {
-            display: block;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Particle Image FIX MOBILE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    html, body {
+        width:100%;
+        height:100%;
+        overflow:hidden;
+        background:#fff;
+        touch-action:none;
+    }
+
+    canvas { display:block; }
+</style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
+<canvas id="canvas"></canvas>
 
-    <script>
-        const canvas = document.getElementById("canvas");
-        const ctx = canvas.getContext("2d");
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+const CONFIG = {
+    gap: isMobile ? 2 : 1,
+    maxParticles: isMobile ? 25000 : 90000,
+    radius: isMobile ? 70 : 90,
+    size: isMobile ? 1.2 : 0.8,
+    speed: 0.15
+};
+
+let width, height;
+let particles = [];
+
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+
+    canvas.width = width * DPR;
+    canvas.height = height * DPR;
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+resize();
+
+// =======================
+// 💥 INTERACTION PULSE
+// =======================
+let interaction = {
+    x: null,
+    y: null,
+    active: false
+};
+
+function triggerInteraction(x,y){
+    interaction.x = x;
+    interaction.y = y;
+    interaction.active = true;
+
+    // 🔥 chỉ active 300ms
+    setTimeout(()=> interaction.active = false, 300);
+}
+
+// PC
+window.addEventListener("mousemove", e=>{
+    triggerInteraction(e.clientX, e.clientY);
+});
+
+// MOBILE
+canvas.addEventListener("touchstart", e=>{
+    e.preventDefault();
+    const t = e.touches[0];
+    triggerInteraction(t.clientX, t.clientY);
+}, { passive:false });
+
+// =======================
+// PARTICLE
+// =======================
+class Particle {
+    constructor(x,y){
+        this.baseX = x;
+        this.baseY = y;
+        this.x = Math.random()*width;
+        this.y = Math.random()*height;
+        this.vx = (Math.random()-0.5)*0.8;
+        this.vy = (Math.random()-0.5)*0.8;
+        this.fixed = false;
+    }
+
+    draw(){
+        ctx.fillRect(this.x,this.y,CONFIG.size,CONFIG.size);
+    }
+
+    update(){
+        // FIXED = đứng yên tuyệt đối
+        if(this.fixed){
+            this.x = this.baseX;
+            this.y = this.baseY;
+            this.draw();
+            return;
         }
-        resizeCanvas();
 
-        // Theo dõi chuột
-        const mouse = {
-            x: null,
-            y: null,
-            radius: 80
-        };
+        // random move
+        this.x += this.vx;
+        this.y += this.vy;
 
-        window.addEventListener("mousemove", (event) => {
-            const rect = canvas.getBoundingClientRect();
-            mouse.x = event.clientX - rect.left;
-            mouse.y = event.clientY - rect.top;
-        });
+        if(this.x<=0||this.x>=width) this.vx*=-1;
+        if(this.y<=0||this.y>=height) this.vy*=-1;
 
-        window.addEventListener("mouseout", () => {
-            mouse.x = null;
-            mouse.y = null;
-        });
+        // interaction pulse
+        if(interaction.active){
+            const dx = interaction.x - this.x;
+            const dy = interaction.y - this.y;
 
-        // Lớp Particle
-        class Particle {
-            constructor(x, y) {
-                this.baseX = x;
-                this.baseY = y;
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.size = 0.7;
-                this.vx = (Math.random() - 0.5) * 1.2;
-                this.vy = (Math.random() - 0.5) * 1.2;
-            }
+            if(dx*dx + dy*dy < CONFIG.radius*CONFIG.radius){
+                const bx = this.baseX - this.x;
+                const by = this.baseY - this.y;
 
-            draw() {
-                ctx.fillRect(this.x, this.y, this.size, this.size);
-            }
+                this.x += bx * CONFIG.speed;
+                this.y += by * CONFIG.speed;
 
-            update() {
-                // Di chuyển ngẫu nhiên
-                this.x += this.vx;
-                this.y += this.vy;
-
-                // Phản xạ ở biên
-                if (this.x <= 0 || this.x >= canvas.width) this.vx *= -1;
-                if (this.y <= 0 || this.y >= canvas.height) this.vy *= -1;
-
-                // Tương tác với chuột
-                if (mouse.x !== null && mouse.y !== null) {
-                    const dxMouse = mouse.x - this.x;
-                    const dyMouse = mouse.y - this.y;
-                    const distance = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-
-                    if (distance < mouse.radius) {
-                        const dx = this.baseX - this.x;
-                        const dy = this.baseY - this.y;
-
-                        // Hút về vị trí gốc
-                        this.x += dx * 0.2;
-                        this.y += dy * 0.2;
-
-                        // Giảm vận tốc để ổn định
-                        this.vx *= 0.9;
-                        this.vy *= 0.9;
-
-                        // Cố định chính xác vị trí
-                        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
-                            this.x = this.baseX;
-                            this.y = this.baseY;
-                        }
-                    }
-                }
-
-                this.draw();
-            }
-        }
-
-        let particlesArray = [];
-        const image = new Image();
-        image.src = "image.png";
-
-        image.onload = function () {
-            particlesArray = [];
-
-            const tempCanvas = document.createElement("canvas");
-            const tempCtx = tempCanvas.getContext("2d");
-
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-
-            // Tính toán để căn giữa ảnh
-            const scale = Math.min(
-                canvas.width / image.width,
-                canvas.height / image.height
-            ) * 0.8;
-
-            const imgWidth = image.width * scale;
-            const imgHeight = image.height * scale;
-
-            const offsetX = (canvas.width - imgWidth) / 2;
-            const offsetY = (canvas.height - imgHeight) / 2;
-
-            tempCtx.drawImage(
-                image,
-                offsetX,
-                offsetY,
-                imgWidth,
-                imgHeight
-            );
-
-            const imageData = tempCtx.getImageData(
-                0,
-                0,
-                canvas.width,
-                canvas.height
-            );
-
-            // Mật độ cực cao 
-            const gap = 1;
-
-            for (let y = 0; y < canvas.height; y += gap) {
-                for (let x = 0; x < canvas.width; x += gap) {
-                    const index = (y * canvas.width + x) * 4;
-                    const r = imageData.data[index];
-                    const g = imageData.data[index + 1];
-                    const b = imageData.data[index + 2];
-                    const alpha = imageData.data[index + 3];
-
-                    const brightness = (r + g + b) / 3;
-
-                    // Chỉ lấy vùng tối để tạo ảnh đen trắng
-                    if (alpha > 128 && brightness < 200) {
-                        particlesArray.push(new Particle(x, y));
-                    }
+                // 🔥 SNAP + LOCK
+                if(Math.abs(bx)<0.1 && Math.abs(by)<0.1){
+                    this.fixed = true;
+                    this.x = this.baseX;
+                    this.y = this.baseY;
+                    this.vx = 0;
+                    this.vy = 0;
                 }
             }
-
-            console.log("Số lượng vật thể:", particlesArray.length);
-            animate();
-        };
-
-        image.onerror = function () {
-            alert("Không tìm thấy file image.png. Hãy kiểm tra lại!");
-        };
-
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "black";
-
-            for (let i = 0; i < particlesArray.length; i++) {
-                particlesArray[i].update();
-            }
-
-            requestAnimationFrame(animate);
         }
 
-        window.addEventListener("resize", () => {
-            resizeCanvas();
-            image.onload();
-        });
-    </script>
+        this.draw();
+    }
+}
+
+// =======================
+// IMAGE
+// =======================
+const img = new Image();
+img.src = "image.png";
+
+function init(){
+    particles = [];
+
+    const temp = document.createElement("canvas");
+    const tctx = temp.getContext("2d");
+
+    temp.width = width;
+    temp.height = height;
+
+    const scale = Math.min(width/img.width, height/img.height)*0.8;
+
+    const w = img.width*scale;
+    const h = img.height*scale;
+
+    const ox = (width-w)/2;
+    const oy = (height-h)/2;
+
+    tctx.drawImage(img,ox,oy,w,h);
+
+    const data = tctx.getImageData(0,0,width,height).data;
+
+    for(let y=0;y<height;y+=CONFIG.gap){
+        for(let x=0;x<width;x+=CONFIG.gap){
+
+            const i = (y*width + x)*4;
+            const a = data[i+3];
+            const bright = (data[i]+data[i+1]+data[i+2])/3;
+
+            if(a>128 && bright<200 && particles.length<CONFIG.maxParticles){
+                particles.push(new Particle(x,y));
+            }
+        }
+    }
+}
+
+img.onload = ()=>{
+    init();
+    animate();
+};
+
+// =======================
+// LOOP
+// =======================
+function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "black";
+
+    for(let p of particles){
+        p.update();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+// resize
+window.addEventListener("resize", ()=>{
+    resize();
+    if(img.complete) init();
+});
+</script>
 </body>
 </html>
