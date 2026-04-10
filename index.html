@@ -24,7 +24,7 @@ const CONFIG = {
     mouseRadius: isMobile ? 70 : 90,
     particleSize: isMobile ? 1.2 : 0.8,
     returnSpeed: 0.12,
-    snapDistance: 1.2 // Khoảng cách khóa vị trí rộng hơn cho điện thoại
+    snapDistance: 1.0 
 };
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -74,26 +74,35 @@ class Particle {
             return;
         }
 
-        this.x += this.vx;
-        this.y += this.vy;
-        if (this.x <= 0 || this.x >= width) this.vx *= -1;
-        if (this.y <= 0 || this.y >= height) this.vy *= -1;
+        // Luôn kiểm tra xem hạt có đang ở rất gần vị trí gốc không để khóa lại
+        const dxBase = this.baseX - this.x;
+        const dyBase = this.baseY - this.y;
+        if (Math.abs(dxBase) < CONFIG.snapDistance && Math.abs(dyBase) < CONFIG.snapDistance) {
+            this.x = this.baseX;
+            this.y = this.baseY;
+            this.fixed = true;
+            ctx.fillRect(this.baseX, this.baseY, this.size, this.size);
+            return;
+        }
 
         if (mouse.x !== null && mouse.y !== null) {
             const dxMouse = mouse.x - this.x;
             const dyMouse = mouse.y - this.y;
             if (Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse) < mouse.radius) {
-                const dx = this.baseX - this.x;
-                const dy = this.baseY - this.y;
-                this.x += dx * CONFIG.returnSpeed;
-                this.y += dy * CONFIG.returnSpeed;
-
-                // Khóa vị trí tuyệt đối khi đủ gần
-                if (Math.abs(dx) < CONFIG.snapDistance && Math.abs(dy) < CONFIG.snapDistance) {
-                    this.fixed = true;
-                }
+                this.x += dxBase * CONFIG.returnSpeed;
+                this.y += dyBase * CONFIG.returnSpeed;
+            } else {
+                this.x += this.vx;
+                this.y += this.vy;
             }
+        } else {
+            this.x += this.vx;
+            this.y += this.vy;
         }
+
+        if (this.x <= 0 || this.x >= width) this.vx *= -1;
+        if (this.y <= 0 || this.y >= height) this.vy *= -1;
+
         ctx.fillRect(this.x, this.y, this.size, this.size);
     }
 }
