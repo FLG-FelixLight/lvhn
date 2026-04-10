@@ -16,6 +16,7 @@
             height: 100%;
             overflow: hidden;
             background: #ffffff;
+            touch-action: none;
         }
 
         canvas {
@@ -37,9 +38,10 @@ const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const CONFIG = {
     gap: isMobile ? 2 : 1,
     maxParticles: isMobile ? 25000 : 90000,
-    mouseRadius: isMobile ? 60 : 90,
+    mouseRadius: isMobile ? 70 : 90,
     particleSize: isMobile ? 1.2 : 0.8,
-    returnSpeed: 0.12
+    returnSpeed: isMobile ? 0.18 : 0.12,
+    snapThreshold: isMobile ? 0.5 : 0.3
 };
 
 // Giới hạn độ nét để tránh quá tải
@@ -76,6 +78,7 @@ function setMousePosition(x, y) {
     mouse.y = y - rect.top;
 }
 
+// Sự kiện chuột
 window.addEventListener("mousemove", e => {
     setMousePosition(e.clientX, e.clientY);
 });
@@ -84,6 +87,11 @@ window.addEventListener("mouseout", () => {
     mouse.x = null;
     mouse.y = null;
 });
+
+// Sự kiện cảm ứng
+window.addEventListener("touchstart", e => {
+    setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
 
 window.addEventListener("touchmove", e => {
     setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
@@ -112,16 +120,20 @@ class Particle {
     }
 
     update() {
-        // Di chuyển ngẫu nhiên nếu chưa cố định
-        if (!this.fixed) {
-            this.x += this.vx;
-            this.y += this.vy;
-
-            if (this.x <= 0 || this.x >= width) this.vx *= -1;
-            if (this.y <= 0 || this.y >= height) this.vy *= -1;
+        // Nếu đã cố định thì không di chuyển nữa
+        if (this.fixed) {
+            this.draw();
+            return;
         }
 
-        // Khi chuột lại gần, hạt trở về vị trí gốc
+        // Di chuyển ngẫu nhiên
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x <= 0 || this.x >= width) this.vx *= -1;
+        if (this.y <= 0 || this.y >= height) this.vy *= -1;
+
+        // Khi chuột hoặc cảm ứng lại gần
         if (mouse.x !== null && mouse.y !== null) {
             const dxMouse = mouse.x - this.x;
             const dyMouse = mouse.y - this.y;
@@ -135,7 +147,8 @@ class Particle {
                 this.y += dy * CONFIG.returnSpeed;
 
                 // Khi về đúng vị trí, cố định lại
-                if (Math.abs(dx) < 0.3 && Math.abs(dy) < 0.3) {
+                if (Math.abs(dx) < CONFIG.snapThreshold &&
+                    Math.abs(dy) < CONFIG.snapThreshold) {
                     this.x = this.baseX;
                     this.y = this.baseY;
                     this.fixed = true;
@@ -160,7 +173,7 @@ function initParticles() {
     tempCanvas.width = width;
     tempCanvas.height = height;
 
-    // Tính toán tỉ lệ để ảnh luôn hiển thị đầy đủ
+    // Tính toán tỉ lệ để ảnh hiển thị đầy đủ
     const scale = Math.min(
         width / image.width,
         height / image.height
