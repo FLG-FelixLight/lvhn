@@ -22,25 +22,35 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-// Thiết lập kích thước canvas
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-resizeCanvas();
-
-// Nhận diện thiết bị
+// Phát hiện thiết bị
 const isMobile = window.innerWidth < 768;
 
 // Cấu hình tối ưu
 const CONFIG = {
-    gap: isMobile ? 2 : 1.5,        // Mật độ hạt
-    maxParticles: isMobile ? 25000 : 70000,
+    gap: isMobile ? 1.6 : 1.2,       // Tăng độ phân giải
+    maxParticles: isMobile ? 30000 : 90000,
     mouseRadius: isMobile ? 60 : 90,
-    particleSize: isMobile ? 1.2 : 0.8,
+    particleSize: isMobile ? 1.1 : 0.8,
     returnSpeed: 0.15,
     fps: isMobile ? 30 : 60
 };
+
+// Xử lý độ phân giải màn hình (DPR)
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function resizeCanvas() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    canvas.width = width * DPR;
+    canvas.height = height * DPR;
+
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+resizeCanvas();
 
 // Theo dõi chuột và cảm ứng
 const mouse = {
@@ -55,8 +65,7 @@ function setMousePosition(x, y) {
     mouse.y = y - rect.top;
 }
 
-// Chuột
-window.addEventListener("mousemove", (e) => {
+window.addEventListener("mousemove", e => {
     setMousePosition(e.clientX, e.clientY);
 });
 
@@ -65,8 +74,7 @@ window.addEventListener("mouseout", () => {
     mouse.y = null;
 });
 
-// Cảm ứng
-window.addEventListener("touchmove", (e) => {
+window.addEventListener("touchmove", e => {
     setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: true });
 
@@ -80,8 +88,8 @@ class Particle {
     constructor(x, y) {
         this.baseX = x;
         this.baseY = y;
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = Math.random() * canvas.width / DPR;
+        this.y = Math.random() * canvas.height / DPR;
         this.size = CONFIG.particleSize;
         this.vx = (Math.random() - 0.5) * 1.2;
         this.vy = (Math.random() - 0.5) * 1.2;
@@ -92,15 +100,12 @@ class Particle {
     }
 
     update() {
-        // Di chuyển ngẫu nhiên
         this.x += this.vx;
         this.y += this.vy;
 
-        // Phản xạ khi chạm biên
-        if (this.x <= 0 || this.x >= canvas.width) this.vx *= -1;
-        if (this.y <= 0 || this.y >= canvas.height) this.vy *= -1;
+        if (this.x <= 0 || this.x >= canvas.width / DPR) this.vx *= -1;
+        if (this.y <= 0 || this.y >= canvas.height / DPR) this.vy *= -1;
 
-        // Tương tác với chuột
         if (mouse.x !== null && mouse.y !== null) {
             const dxMouse = mouse.x - this.x;
             const dyMouse = mouse.y - this.y;
@@ -116,7 +121,6 @@ class Particle {
                 this.vx *= 0.9;
                 this.vy *= 0.9;
 
-                // Khóa vào vị trí gốc
                 if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
                     this.x = this.baseX;
                     this.y = this.baseY;
@@ -135,24 +139,28 @@ image.src = "image.png";
 function initParticles() {
     particlesArray = [];
 
+    const width = canvas.width / DPR;
+    const height = canvas.height / DPR;
+
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d");
 
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
+    tempCanvas.width = width;
+    tempCanvas.height = height;
 
     // Căn giữa ảnh
     const scale = Math.min(
-        canvas.width / image.width,
-        canvas.height / image.height
+        width / image.width,
+        height / image.height
     ) * 0.8;
 
     const imgWidth = image.width * scale;
     const imgHeight = image.height * scale;
 
-    const offsetX = (canvas.width - imgWidth) / 2;
-    const offsetY = (canvas.height - imgHeight) / 2;
+    const offsetX = (width - imgWidth) / 2;
+    const offsetY = (height - imgHeight) / 2;
 
+    tempCtx.clearRect(0, 0, width, height);
     tempCtx.drawImage(
         image,
         offsetX,
@@ -161,27 +169,25 @@ function initParticles() {
         imgHeight
     );
 
-    const imageData = tempCtx.getImageData(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
+    const imageData = tempCtx.getImageData(0, 0, width, height).data;
 
-    for (let y = 0; y < canvas.height; y += CONFIG.gap) {
-        for (let x = 0; x < canvas.width; x += CONFIG.gap) {
-            const index = (y * canvas.width + x) * 4;
-            const r = imageData.data[index];
-            const g = imageData.data[index + 1];
-            const b = imageData.data[index + 2];
-            const alpha = imageData.data[index + 3];
+    for (let y = 0; y < height; y += CONFIG.gap) {
+        for (let x = 0; x < width; x += CONFIG.gap) {
+            const index = (Math.floor(y) * width + Math.floor(x)) * 4;
+
+            const r = imageData[index];
+            const g = imageData[index + 1];
+            const b = imageData[index + 2];
+            const alpha = imageData[index + 3];
 
             const brightness = (r + g + b) / 3;
 
-            if (alpha > 128 && brightness < 200) {
-                if (particlesArray.length < CONFIG.maxParticles) {
-                    particlesArray.push(new Particle(x, y));
-                }
+            if (
+                particlesArray.length < CONFIG.maxParticles &&
+                alpha > 128 &&
+                brightness < 200
+            ) {
+                particlesArray.push(new Particle(x, y));
             }
         }
     }
@@ -189,37 +195,36 @@ function initParticles() {
     console.log("Số lượng vật thể:", particlesArray.length);
 }
 
-image.onload = function () {
+image.onload = () => {
     initParticles();
     animate(0);
 };
 
-image.onerror = function () {
+image.onerror = () => {
     alert("Không tìm thấy file image.png!");
 };
 
 // Giới hạn FPS
 let lastTime = 0;
+const frameInterval = 1000 / CONFIG.fps;
+
 function animate(timestamp) {
     requestAnimationFrame(animate);
 
-    if (timestamp - lastTime < 1000 / CONFIG.fps) return;
+    if (timestamp - lastTime < frameInterval) return;
     lastTime = timestamp;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "black";
 
-    for (let i = 0; i < particlesArray.length; i++) {
-        particlesArray[i].update();
+    for (let particle of particlesArray) {
+        particle.update();
     }
 }
 
-// Cập nhật khi thay đổi kích thước màn hình
 window.addEventListener("resize", () => {
     resizeCanvas();
-    if (image.complete) {
-        initParticles();
-    }
+    if (image.complete) initParticles();
 });
 </script>
 </body>
