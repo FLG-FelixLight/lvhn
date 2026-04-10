@@ -2,16 +2,14 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Particle Image Interaction</title>
+    <title>Interactive Particle Art</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
         body {
+            margin: 0;
             overflow: hidden;
             background: white;
+            font-family: Arial, sans-serif;
         }
         canvas {
             display: block;
@@ -31,13 +29,19 @@
         }
         resizeCanvas();
 
-        // Theo dõi chuột
+        // Tối ưu theo thiết bị
+        const isMobile = window.innerWidth < 768;
+        const gap = isMobile ? 3 : 1;
+        const MAX_PARTICLES = isMobile ? 8000 : 60000;
+
+        // Theo dõi chuột và cảm ứng
         const mouse = {
             x: null,
             y: null,
-            radius: 80
+            radius: isMobile ? 50 : 80
         };
 
+        // Chuột
         window.addEventListener("mousemove", (event) => {
             const rect = canvas.getBoundingClientRect();
             mouse.x = event.clientX - rect.left;
@@ -49,6 +53,18 @@
             mouse.y = null;
         });
 
+        // Cảm ứng
+        window.addEventListener("touchmove", (event) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = event.touches[0].clientX - rect.left;
+            mouse.y = event.touches[0].clientY - rect.top;
+        });
+
+        window.addEventListener("touchend", () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
         // Lớp Particle
         class Particle {
             constructor(x, y) {
@@ -56,7 +72,7 @@
                 this.baseY = y;
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
-                this.size = 0.7;
+                this.size = isMobile ? 1 : 0.7;
                 this.vx = (Math.random() - 0.5) * 1.2;
                 this.vy = (Math.random() - 0.5) * 1.2;
             }
@@ -70,11 +86,11 @@
                 this.x += this.vx;
                 this.y += this.vy;
 
-                // Phản xạ ở biên
+                // Phản xạ tại biên
                 if (this.x <= 0 || this.x >= canvas.width) this.vx *= -1;
                 if (this.y <= 0 || this.y >= canvas.height) this.vy *= -1;
 
-                // Tương tác với chuột
+                // Tương tác với chuột hoặc cảm ứng
                 if (mouse.x !== null && mouse.y !== null) {
                     const dxMouse = mouse.x - this.x;
                     const dyMouse = mouse.y - this.y;
@@ -88,7 +104,7 @@
                         this.x += dx * 0.2;
                         this.y += dy * 0.2;
 
-                        // Giảm vận tốc để ổn định
+                        // Giảm vận tốc
                         this.vx *= 0.9;
                         this.vy *= 0.9;
 
@@ -108,7 +124,7 @@
         const image = new Image();
         image.src = "image.png";
 
-        image.onload = function () {
+        function initParticles() {
             particlesArray = [];
 
             const tempCanvas = document.createElement("canvas");
@@ -117,7 +133,7 @@
             tempCanvas.width = canvas.width;
             tempCanvas.height = canvas.height;
 
-            // Tính toán để căn giữa ảnh
+            // Căn giữa ảnh
             const scale = Math.min(
                 canvas.width / image.width,
                 canvas.height / image.height
@@ -144,9 +160,6 @@
                 canvas.height
             );
 
-            // Mật độ cực cao 
-            const gap = 1;
-
             for (let y = 0; y < canvas.height; y += gap) {
                 for (let x = 0; x < canvas.width; x += gap) {
                     const index = (y * canvas.width + x) * 4;
@@ -157,19 +170,26 @@
 
                     const brightness = (r + g + b) / 3;
 
-                    // Chỉ lấy vùng tối để tạo ảnh đen trắng
-                    if (alpha > 128 && brightness < 200) {
+                    if (
+                        particlesArray.length < MAX_PARTICLES &&
+                        alpha > 128 &&
+                        brightness < 200
+                    ) {
                         particlesArray.push(new Particle(x, y));
                     }
                 }
             }
 
             console.log("Số lượng vật thể:", particlesArray.length);
+        }
+
+        image.onload = function () {
+            initParticles();
             animate();
         };
 
         image.onerror = function () {
-            alert("Không tìm thấy file image.png. Hãy kiểm tra lại!");
+            alert("Không tìm thấy file image.png!");
         };
 
         function animate() {
@@ -185,7 +205,9 @@
 
         window.addEventListener("resize", () => {
             resizeCanvas();
-            image.onload();
+            if (image.complete) {
+                initParticles();
+            }
         });
     </script>
 </body>
