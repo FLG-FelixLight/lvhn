@@ -23,19 +23,19 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-// Nhận diện thiết bị
+// Phát hiện thiết bị
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
-// Cấu hình tối ưu
+// Cấu hình
 const CONFIG = {
-    gap: isMobile ? 2 : 1,
-    maxParticles: isMobile ? 25000 : 90000,
+    gap: isMobile ? 2 : 1,             // Độ phân giải
+    maxParticles: isMobile ? 20000 : 80000,
     mouseRadius: isMobile ? 60 : 90,
     particleSize: isMobile ? 1.2 : 0.8,
     returnSpeed: 0.15
 };
 
-// Tối ưu độ nét màn hình
+// Điều chỉnh độ nét màn hình
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 // Thiết lập kích thước canvas
@@ -70,14 +70,14 @@ window.addEventListener("mousemove", e => {
     setMousePosition(e.clientX, e.clientY);
 });
 
+window.addEventListener("touchmove", e => {
+    setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
 window.addEventListener("mouseout", () => {
     mouse.x = null;
     mouse.y = null;
 });
-
-window.addEventListener("touchmove", e => {
-    setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
-}, { passive: true });
 
 window.addEventListener("touchend", () => {
     mouse.x = null;
@@ -89,8 +89,8 @@ class Particle {
     constructor(x, y) {
         this.baseX = x;
         this.baseY = y;
-        this.x = Math.random() * width;
-        this.y = Math.random() * height;
+        this.x = Math.random() * canvas.width / DPR;
+        this.y = Math.random() * canvas.height / DPR;
         this.size = CONFIG.particleSize;
         this.vx = (Math.random() - 0.5) * 1;
         this.vy = (Math.random() - 0.5) * 1;
@@ -104,8 +104,11 @@ class Particle {
         this.x += this.vx;
         this.y += this.vy;
 
-        if (this.x <= 0 || this.x >= width) this.vx *= -1;
-        if (this.y <= 0 || this.y >= height) this.vy *= -1;
+        const maxX = canvas.width / DPR;
+        const maxY = canvas.height / DPR;
+
+        if (this.x <= 0 || this.x >= maxX) this.vx *= -1;
+        if (this.y <= 0 || this.y >= maxY) this.vy *= -1;
 
         if (mouse.x !== null && mouse.y !== null) {
             const dxMouse = mouse.x - this.x;
@@ -118,6 +121,9 @@ class Particle {
 
                 this.x += dx * CONFIG.returnSpeed;
                 this.y += dy * CONFIG.returnSpeed;
+
+                this.vx *= 0.9;
+                this.vy *= 0.9;
             }
         }
 
@@ -126,16 +132,14 @@ class Particle {
 }
 
 let particlesArray = [];
-let width, height;
-
 const image = new Image();
 image.src = "image.png";
 
 function initParticles() {
     particlesArray = [];
 
-    width = canvas.width / DPR;
-    height = canvas.height / DPR;
+    const width = canvas.width / DPR;
+    const height = canvas.height / DPR;
 
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d");
@@ -144,7 +148,10 @@ function initParticles() {
     tempCanvas.height = height;
 
     // Căn giữa ảnh
-    const scale = Math.min(width / image.width, height / image.height) * 0.8;
+    const scale = Math.min(
+        width / image.width,
+        height / image.height
+    ) * 0.8;
 
     const imgWidth = image.width * scale;
     const imgHeight = image.height * scale;
@@ -152,8 +159,13 @@ function initParticles() {
     const offsetX = (width - imgWidth) / 2;
     const offsetY = (height - imgHeight) / 2;
 
-    tempCtx.clearRect(0, 0, width, height);
-    tempCtx.drawImage(image, offsetX, offsetY, imgWidth, imgHeight);
+    tempCtx.drawImage(
+        image,
+        offsetX,
+        offsetY,
+        imgWidth,
+        imgHeight
+    );
 
     const imageData = tempCtx.getImageData(0, 0, width, height).data;
 
@@ -161,12 +173,12 @@ function initParticles() {
         for (let x = 0; x < width; x += CONFIG.gap) {
             const index = (Math.floor(y) * width + Math.floor(x)) * 4;
 
-            const r = imageData[index];
-            const g = imageData[index + 1];
-            const b = imageData[index + 2];
             const alpha = imageData[index + 3];
-
-            const brightness = (r + g + b) / 3;
+            const brightness = (
+                imageData[index] +
+                imageData[index + 1] +
+                imageData[index + 2]
+            ) / 3;
 
             if (
                 alpha > 128 &&
@@ -181,7 +193,7 @@ function initParticles() {
     console.log("Particles:", particlesArray.length);
 }
 
-image.onload = () => {
+image.onload = function () {
     initParticles();
     animate();
 };
@@ -197,7 +209,7 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-// Cập nhật khi thay đổi kích thước
+// Cập nhật khi thay đổi kích thước màn hình
 window.addEventListener("resize", () => {
     resizeCanvas();
     if (image.complete) {
