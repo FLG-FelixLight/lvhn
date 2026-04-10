@@ -24,7 +24,7 @@ const CONFIG = {
     mouseRadius: isMobile ? 70 : 90,
     particleSize: isMobile ? 1.2 : 0.8,
     returnSpeed: 0.12,
-    snapDistance: 1.0 // Nới rộng để điện thoại dễ khóa vị trí
+    snapDistance: 1.2 // Khoảng cách khóa vị trí rộng hơn cho điện thoại
 };
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -88,6 +88,7 @@ class Particle {
                 this.x += dx * CONFIG.returnSpeed;
                 this.y += dy * CONFIG.returnSpeed;
 
+                // Khóa vị trí tuyệt đối khi đủ gần
                 if (Math.abs(dx) < CONFIG.snapDistance && Math.abs(dy) < CONFIG.snapDistance) {
                     this.fixed = true;
                 }
