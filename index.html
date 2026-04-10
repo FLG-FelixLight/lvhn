@@ -21,14 +21,15 @@ const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const CONFIG = {
     gap: isMobile ? 3 : 2,
     maxParticles: isMobile ? 15000 : 80000,
-    mouseRadius: isMobile ? 60 : 100,
-    particleSize: isMobile ? 1.2 : 0.8,
-    returnSpeed: 0.15 // Tăng tốc độ hút để dễ dính
+    mouseRadius: isMobile ? 80 : 120,
+    particleSize: isMobile ? 1.5 : 1,
+    returnSpeed: 0.2, // Tăng tốc độ quay về
+    snapDistance: 1.5 // Khoảng cách để hạt "dính" vào vị trí gốc
 };
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 let width, height, particlesArray = [];
-const mouse = { x: null, y: null, radius: CONFIG.mouseRadius };
+const mouse = { x: null, y: null };
 
 function resizeCanvas() {
     width = window.innerWidth;
@@ -67,34 +68,39 @@ class Particle {
     update() {
         if (this.fixed) {
             ctx.fillRect(this.baseX, this.baseY, this.size, this.size);
-            return; // Dừng mọi tính toán nếu đã về vị trí
+            return;
         }
 
-        // Di chuyển tự do
-        this.x += this.vx;
-        this.y += this.vy;
-        if (this.x <= 0 || this.x >= width) this.vx *= -1;
-        if (this.y <= 0 || this.y >= height) this.vy *= -1;
-
-        // Kiểm tra tương tác chuột/tay
         if (mouse.x !== null) {
-            let dx = mouse.x - this.x;
-            let dy = mouse.y - this.y;
-            let distance = Math.sqrt(dx * dx + dy * dy);
+            let dxMouse = mouse.x - this.x;
+            let dyMouse = mouse.y - this.y;
+            let distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
 
-            if (distance < mouse.radius) {
-                // Hút về vị trí gốc
+            if (distMouse < CONFIG.mouseRadius) {
+                // Di chuyển về phía baseX, baseY
                 this.x += (this.baseX - this.x) * CONFIG.returnSpeed;
                 this.y += (this.baseY - this.y) * CONFIG.returnSpeed;
 
-                // Kiểm tra độ khớp để khóa vị trí vĩnh viễn
-                if (Math.abs(this.x - this.baseX) < 0.2 && Math.abs(this.y - this.baseY) < 0.2) {
+                // Nếu đã đủ gần thì khóa vị trí luôn
+                if (Math.abs(this.x - this.baseX) < CONFIG.snapDistance && 
+                    Math.abs(this.y - this.baseY) < CONFIG.snapDistance) {
                     this.x = this.baseX;
                     this.y = this.baseY;
                     this.fixed = true;
                 }
+            } else {
+                this.x += this.vx;
+                this.y += this.vy;
             }
+        } else {
+            this.x += this.vx;
+            this.y += this.vy;
         }
+
+        // Va chạm biên
+        if (this.x <= 0 || this.x >= width) this.vx *= -1;
+        if (this.y <= 0 || this.y >= height) this.vy *= -1;
+
         ctx.fillRect(this.x, this.y, this.size, this.size);
     }
 }
@@ -107,7 +113,8 @@ function initParticles() {
     particlesArray = [];
     const tempCanvas = document.createElement("canvas");
     const tCtx = tempCanvas.getContext("2d");
-    tempCanvas.width = width; tempCanvas.height = height;
+    tempCanvas.width = width;
+    tempCanvas.height = height;
 
     const scale = Math.min(width/image.width, height/image.height) * 0.8;
     const iw = image.width * scale, ih = image.height * scale;
