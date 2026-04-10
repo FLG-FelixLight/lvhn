@@ -2,25 +2,17 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Interactive Particle Art</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Particle Image Art</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         html, body {
             margin: 0;
             padding: 0;
             overflow: hidden;
             background: #ffffff;
-            height: 100%;
         }
-
-        body {
-            height: 100dvh; /* Khắc phục lỗi mất hình trên mobile */
-        }
-
         canvas {
             display: block;
-            width: 100%;
-            height: 100%;
         }
     </style>
 </head>
@@ -32,40 +24,24 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 // Phát hiện thiết bị
-const isMobile = window.innerWidth < 768;
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
-// Cấu hình tối ưu
+// Cấu hình
 const CONFIG = {
-    gap: isMobile ? 1.4 : 1.2, // Giữ chất lượng cao
-    maxParticles: isMobile ? 40000 : 90000,
+    gap: isMobile ? 2 : 1,             // Độ phân giải
+    maxParticles: isMobile ? 20000 : 80000,
     mouseRadius: isMobile ? 60 : 90,
-    particleSize: isMobile ? 1.1 : 0.8,
-    returnSpeed: 0.15,
-    fps: isMobile ? 30 : 60
+    particleSize: isMobile ? 1.2 : 0.8,
+    returnSpeed: 0.15
 };
 
-// Giới hạn DPR để tránh quá tải
+// Điều chỉnh độ nét màn hình
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
-// Lấy kích thước viewport chính xác
-function getViewportSize() {
-    if (window.visualViewport) {
-        return {
-            width: window.visualViewport.width,
-            height: window.visualViewport.height
-        };
-    }
-    return {
-        width: window.innerWidth,
-        height: window.innerHeight
-    };
-}
-
-// Thiết lập canvas
+// Thiết lập kích thước canvas
 function resizeCanvas() {
-    const viewport = getViewportSize();
-    const width = viewport.width;
-    const height = viewport.height;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     canvas.width = width * DPR;
     canvas.height = height * DPR;
@@ -90,20 +66,18 @@ function setMousePosition(x, y) {
     mouse.y = y - rect.top;
 }
 
-// Chuột
-window.addEventListener("mousemove", (e) => {
+window.addEventListener("mousemove", e => {
     setMousePosition(e.clientX, e.clientY);
 });
+
+window.addEventListener("touchmove", e => {
+    setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
 
 window.addEventListener("mouseout", () => {
     mouse.x = null;
     mouse.y = null;
 });
-
-// Cảm ứng
-window.addEventListener("touchmove", (e) => {
-    setMousePosition(e.touches[0].clientX, e.touches[0].clientY);
-}, { passive: true });
 
 window.addEventListener("touchend", () => {
     mouse.x = null;
@@ -118,8 +92,8 @@ class Particle {
         this.x = Math.random() * canvas.width / DPR;
         this.y = Math.random() * canvas.height / DPR;
         this.size = CONFIG.particleSize;
-        this.vx = (Math.random() - 0.5) * 1.2;
-        this.vy = (Math.random() - 0.5) * 1.2;
+        this.vx = (Math.random() - 0.5) * 1;
+        this.vy = (Math.random() - 0.5) * 1;
     }
 
     draw() {
@@ -150,11 +124,6 @@ class Particle {
 
                 this.vx *= 0.9;
                 this.vy *= 0.9;
-
-                if (Math.abs(dx) < 0.3 && Math.abs(dy) < 0.3) {
-                    this.x = this.baseX;
-                    this.y = this.baseY;
-                }
             }
         }
 
@@ -182,7 +151,7 @@ function initParticles() {
     const scale = Math.min(
         width / image.width,
         height / image.height
-    ) * 0.85;
+    ) * 0.8;
 
     const imgWidth = image.width * scale;
     const imgHeight = image.height * scale;
@@ -190,7 +159,6 @@ function initParticles() {
     const offsetX = (width - imgWidth) / 2;
     const offsetY = (height - imgHeight) / 2;
 
-    tempCtx.clearRect(0, 0, width, height);
     tempCtx.drawImage(
         image,
         offsetX,
@@ -205,65 +173,49 @@ function initParticles() {
         for (let x = 0; x < width; x += CONFIG.gap) {
             const index = (Math.floor(y) * width + Math.floor(x)) * 4;
 
-            const r = imageData[index];
-            const g = imageData[index + 1];
-            const b = imageData[index + 2];
             const alpha = imageData[index + 3];
-
-            const brightness = (r + g + b) / 3;
+            const brightness = (
+                imageData[index] +
+                imageData[index + 1] +
+                imageData[index + 2]
+            ) / 3;
 
             if (
-                particlesArray.length < CONFIG.maxParticles &&
                 alpha > 128 &&
-                brightness < 220
+                brightness < 200 &&
+                particlesArray.length < CONFIG.maxParticles
             ) {
                 particlesArray.push(new Particle(x, y));
             }
         }
     }
 
-    console.log("Số lượng vật thể:", particlesArray.length);
+    console.log("Particles:", particlesArray.length);
 }
 
-image.onload = () => {
+image.onload = function () {
     initParticles();
-    animate(0);
+    animate();
 };
 
-image.onerror = () => {
-    alert("Không tìm thấy file image.png!");
-};
-
-// Giới hạn FPS
-let lastTime = 0;
-const frameInterval = 1000 / CONFIG.fps;
-
-function animate(timestamp) {
-    requestAnimationFrame(animate);
-
-    if (timestamp - lastTime < frameInterval) return;
-    lastTime = timestamp;
-
+function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "black";
 
     for (let particle of particlesArray) {
         particle.update();
     }
+
+    requestAnimationFrame(animate);
 }
 
-// Cập nhật khi thay đổi kích thước
+// Cập nhật khi thay đổi kích thước màn hình
 window.addEventListener("resize", () => {
     resizeCanvas();
-    if (image.complete) initParticles();
+    if (image.complete) {
+        initParticles();
+    }
 });
-
-if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", () => {
-        resizeCanvas();
-        if (image.complete) initParticles();
-    });
-}
 </script>
 </body>
 </html>
