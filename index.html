@@ -1,40 +1,243 @@
-update() {
-    // Nếu đã cố định thì không di chuyển nữa
-    if (this.fixed) {
-        this.draw();
-        return;
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Particle Image</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #ffffff;
+            touch-action: none; /* Ngăn cuộn trên mobile */
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+// Nhận diện thiết bị
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+// Cấu hình tối ưu
+const CONFIG = {
+    gap: isMobile ? 2 : 1,
+    maxParticles: isMobile ? 25000 : 90000,
+    mouseRadius: isMobile ? 70 : 90,
+    particleSize: isMobile ? 1.2 : 0.8,
+    returnSpeed: 0.12
+};
+
+// Giới hạn độ nét
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+let width, height;
+let particlesArray = [];
+
+// ================== CANVAS ==================
+function resizeCanvas() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+
+    canvas.width = width * DPR;
+    canvas.height = height * DPR;
+
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+resizeCanvas();
+
+// ================== POINTER ==================
+const mouse = {
+    x: null,
+    y: null,
+    radius: CONFIG.mouseRadius
+};
+
+function setPointer(x, y) {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = x - rect.left;
+    mouse.y = y - rect.top;
+}
+
+function resetPointer() {
+    mouse.x = null;
+    mouse.y = null;
+}
+
+// Chuột
+canvas.addEventListener("mousemove", e => {
+    setPointer(e.clientX, e.clientY);
+});
+
+canvas.addEventListener("mouseleave", resetPointer);
+
+// Cảm ứng
+canvas.addEventListener("touchstart", e => {
+    setPointer(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+canvas.addEventListener("touchmove", e => {
+    setPointer(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+canvas.addEventListener("touchend", resetPointer);
+
+// ================== PARTICLE ==================
+class Particle {
+    constructor(x, y) {
+        this.baseX = x;
+        this.baseY = y;
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.size = CONFIG.particleSize;
+        this.vx = (Math.random() - 0.5) * 0.8;
+        this.vy = (Math.random() - 0.5) * 0.8;
+        this.fixed = false;
     }
 
-    // Di chuyển ngẫu nhiên
-    this.x += this.vx;
-    this.y += this.vy;
+    draw() {
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+    }
 
-    if (this.x <= 0 || this.x >= width) this.vx *= -1;
-    if (this.y <= 0 || this.y >= height) this.vy *= -1;
+    update() {
+        // Nếu đã cố định, không di chuyển nữa
+        if (this.fixed) {
+            this.draw();
+            return;
+        }
 
-    // Khi con trỏ ở gần, hạt trở về vị trí gốc
-    if (mouse.x !== null && mouse.y !== null) {
-        const dxMouse = mouse.x - this.x;
-        const dyMouse = mouse.y - this.y;
-        const distance = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+        // Di chuyển ngẫu nhiên
+        this.x += this.vx;
+        this.y += this.vy;
 
-        if (distance < mouse.radius) {
-            const dx = this.baseX - this.x;
-            const dy = this.baseY - this.y;
+        if (this.x <= 0 || this.x >= width) this.vx *= -1;
+        if (this.y <= 0 || this.y >= height) this.vy *= -1;
 
-            this.x += dx * CONFIG.returnSpeed;
-            this.y += dy * CONFIG.returnSpeed;
+        // Khi con trỏ đến gần, trở về vị trí gốc
+        if (mouse.x !== null && mouse.y !== null) {
+            const dxMouse = mouse.x - this.x;
+            const dyMouse = mouse.y - this.y;
+            const distance = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
 
-            // Khi đã về đúng vị trí, khóa lại
-            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
-                this.x = this.baseX;
-                this.y = this.baseY;
-                this.vx = 0;
-                this.vy = 0;
-                this.fixed = true; // Khóa vĩnh viễn
+            if (distance < mouse.radius) {
+                const dx = this.baseX - this.x;
+                const dy = this.baseY - this.y;
+
+                this.x += dx * CONFIG.returnSpeed;
+                this.y += dy * CONFIG.returnSpeed;
+
+                // Khóa vị trí khi đã về đúng chỗ
+                if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+                    this.x = this.baseX;
+                    this.y = this.baseY;
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.fixed = true;
+                }
+            }
+        }
+
+        this.draw();
+    }
+}
+
+// ================== IMAGE PROCESSING ==================
+const image = new Image();
+image.src = "image.png";
+
+function initParticles() {
+    particlesArray = [];
+
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
+
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+
+    // Căn giữa ảnh
+    const scale = Math.min(width / image.width, height / image.height) * 0.8;
+    const imgWidth = image.width * scale;
+    const imgHeight = image.height * scale;
+
+    const offsetX = (width - imgWidth) / 2;
+    const offsetY = (height - imgHeight) / 2;
+
+    tempCtx.clearRect(0, 0, width, height);
+    tempCtx.drawImage(image, offsetX, offsetY, imgWidth, imgHeight);
+
+    const imageData = tempCtx.getImageData(0, 0, width, height).data;
+
+    for (let y = 0; y < height; y += CONFIG.gap) {
+        for (let x = 0; x < width; x += CONFIG.gap) {
+            const index = (Math.floor(y) * width + Math.floor(x)) * 4;
+
+            const r = imageData[index];
+            const g = imageData[index + 1];
+            const b = imageData[index + 2];
+            const alpha = imageData[index + 3];
+
+            const brightness = (r + g + b) / 3;
+
+            if (
+                alpha > 128 &&
+                brightness < 200 &&
+                particlesArray.length < CONFIG.maxParticles
+            ) {
+                particlesArray.push(new Particle(x, y));
             }
         }
     }
 
-    this.draw();
+    console.log("Particles:", particlesArray.length);
 }
+
+image.onload = () => {
+    resizeCanvas();
+    initParticles();
+    animate();
+};
+
+image.onerror = () => {
+    alert("Không tìm thấy file image.png!");
+};
+
+// ================== ANIMATION ==================
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "black";
+
+    for (let particle of particlesArray) {
+        particle.update();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+// ================== RESIZE ==================
+window.addEventListener("resize", () => {
+    resizeCanvas();
+    if (image.complete) {
+        initParticles();
+    }
+});
+</script>
+</body>
+</html>
