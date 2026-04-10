@@ -123,43 +123,50 @@ class Particle {
     }
 
     update() {
-       // Nếu đã fixed → đứng yên luôn
-       if (this.fixed) {
-           this.draw();
-           return;
-       }
-   
-       // Random movement
-       this.x += this.vx;
-       this.y += this.vy;
-   
-       if (this.x <= 0 || this.x >= width) this.vx *= -1;
-       if (this.y <= 0 || this.y >= height) this.vy *= -1;
-   
-       // Interaction
-       if (mouse.x !== null && mouse.y !== null) {
-           const dxMouse = mouse.x - this.x;
-           const dyMouse = mouse.y - this.y;
-           const distance = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-   
-           if (distance < mouse.radius) {
-               const dx = this.baseX - this.x;
-               const dy = this.baseY - this.y;
-   
-               this.x += dx * CONFIG.returnSpeed;
-               this.y += dy * CONFIG.returnSpeed;
-   
-               // FIX CỨNG
-               if (Math.abs(dx) < 0.15 && Math.abs(dy) < 0.15) {
-                   this.x = this.baseX;
-                   this.y = this.baseY;
-                   this.fixed = true; // khóa vĩnh viễn
-               }
-           }
-       }
-   
-       this.draw();
-   }
+    // 🧱 Nếu đã fixed → khóa cứng hoàn toàn
+    if (this.fixed) {
+        this.x = this.baseX;
+        this.y = this.baseY;
+        this.draw();
+        return;
+    }
+
+    // 🎲 Di chuyển random
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (this.x <= 0 || this.x >= width) this.vx *= -1;
+    if (this.y <= 0 || this.y >= height) this.vy *= -1;
+
+    // 👉 Interaction
+    if (mouse.x !== null && mouse.y !== null) {
+        const dxMouse = mouse.x - this.x;
+        const dyMouse = mouse.y - this.y;
+        const distance = dxMouse * dxMouse + dyMouse * dyMouse;
+
+        // dùng distance^2 để tránh sqrt (ổn định hơn trên mobile)
+        if (distance < mouse.radius * mouse.radius) {
+            const dx = this.baseX - this.x;
+            const dy = this.baseY - this.y;
+
+            this.x += dx * CONFIG.returnSpeed;
+            this.y += dy * CONFIG.returnSpeed;
+
+            // 🎯 FIX CỨNG (QUAN TRỌNG NHẤT)
+            if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+                this.fixed = true;
+
+                // khóa tuyệt đối
+                this.x = this.baseX;
+                this.y = this.baseY;
+                this.vx = 0;
+                this.vy = 0;
+            }
+        }
+    }
+
+    this.draw();
+}
 }
 
 // =======================
