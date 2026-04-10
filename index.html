@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Particle Image FIX MOBILE</title>
+<title>Particle Image Mobile Fix</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -25,85 +25,121 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
 const CONFIG = {
     gap: isMobile ? 2 : 1,
     maxParticles: isMobile ? 25000 : 90000,
-    radius: isMobile ? 70 : 90,
-    size: isMobile ? 1.2 : 0.8,
-    speed: 0.15
+    mouseRadius: isMobile ? 70 : 90,
+    particleSize: isMobile ? 1.2 : 0.8,
+    returnSpeed: 0.15
 };
-
-let width, height;
-let particles = [];
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
-function resize() {
+let width, height;
+let particlesArray = [];
+
+function resizeCanvas() {
     width = window.innerWidth;
     height = window.innerHeight;
 
     canvas.width = width * DPR;
     canvas.height = height * DPR;
+
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
 
-    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
-resize();
+resizeCanvas();
 
 // =======================
-// 💥 INTERACTION PULSE
+// MOUSE
 // =======================
-let interaction = {
+const mouse = {
     x: null,
     y: null,
-    active: false
+    radius: CONFIG.mouseRadius
 };
 
-function triggerInteraction(x,y){
-    interaction.x = x;
-    interaction.y = y;
-    interaction.active = true;
-
-    // 🔥 chỉ active 300ms
-    setTimeout(()=> interaction.active = false, 300);
+function setMousePosition(x, y) {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = x - rect.left;
+    mouse.y = y - rect.top;
 }
 
 // PC
-window.addEventListener("mousemove", e=>{
-    triggerInteraction(e.clientX, e.clientY);
+window.addEventListener("mousemove", e => {
+    setMousePosition(e.clientX, e.clientY);
 });
 
-// MOBILE
-canvas.addEventListener("touchstart", e=>{
-    e.preventDefault();
+window.addEventListener("mouseout", () => {
+    mouse.x = null;
+    mouse.y = null;
+});
+
+// =======================
+// 🔥 MOBILE FIX (THRESHOLD)
+// =======================
+let lastTouchX = null;
+let lastTouchY = null;
+const MOVE_THRESHOLD = 5; // 🔥 chỉnh tại đây
+
+canvas.addEventListener("touchstart", e => {
     const t = e.touches[0];
-    triggerInteraction(t.clientX, t.clientY);
-}, { passive:false });
+    lastTouchX = t.clientX;
+    lastTouchY = t.clientY;
+
+    setMousePosition(t.clientX, t.clientY);
+}, { passive: true });
+
+canvas.addEventListener("touchmove", e => {
+    e.preventDefault();
+
+    const t = e.touches[0];
+
+    const dx = t.clientX - lastTouchX;
+    const dy = t.clientY - lastTouchY;
+
+    // 🔥 chỉ update khi di chuyển đủ lớn
+    if (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD) {
+        setMousePosition(t.clientX, t.clientY);
+
+        lastTouchX = t.clientX;
+        lastTouchY = t.clientY;
+    }
+}, { passive: false });
+
+canvas.addEventListener("touchend", () => {
+    mouse.x = null;
+    mouse.y = null;
+    lastTouchX = null;
+    lastTouchY = null;
+});
 
 // =======================
 // PARTICLE
 // =======================
 class Particle {
-    constructor(x,y){
+    constructor(x, y) {
         this.baseX = x;
         this.baseY = y;
-        this.x = Math.random()*width;
-        this.y = Math.random()*height;
-        this.vx = (Math.random()-0.5)*0.8;
-        this.vy = (Math.random()-0.5)*0.8;
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.size = CONFIG.particleSize;
+        this.vx = (Math.random() - 0.5) * 0.8;
+        this.vy = (Math.random() - 0.5) * 0.8;
         this.fixed = false;
     }
 
-    draw(){
-        ctx.fillRect(this.x,this.y,CONFIG.size,CONFIG.size);
+    draw() {
+        ctx.fillRect(this.x, this.y, this.size, this.size);
     }
 
-    update(){
-        // FIXED = đứng yên tuyệt đối
-        if(this.fixed){
+    update() {
+        // nếu đã fixed → đứng yên tuyệt đối
+        if (this.fixed) {
             this.x = this.baseX;
             this.y = this.baseY;
             this.draw();
@@ -114,23 +150,24 @@ class Particle {
         this.x += this.vx;
         this.y += this.vy;
 
-        if(this.x<=0||this.x>=width) this.vx*=-1;
-        if(this.y<=0||this.y>=height) this.vy*=-1;
+        if (this.x <= 0 || this.x >= width) this.vx *= -1;
+        if (this.y <= 0 || this.y >= height) this.vy *= -1;
 
-        // interaction pulse
-        if(interaction.active){
-            const dx = interaction.x - this.x;
-            const dy = interaction.y - this.y;
+        // interaction
+        if (mouse.x !== null && mouse.y !== null) {
+            const dxMouse = mouse.x - this.x;
+            const dyMouse = mouse.y - this.y;
 
-            if(dx*dx + dy*dy < CONFIG.radius*CONFIG.radius){
-                const bx = this.baseX - this.x;
-                const by = this.baseY - this.y;
+            const dist2 = dxMouse * dxMouse + dyMouse * dyMouse;
 
-                this.x += bx * CONFIG.speed;
-                this.y += by * CONFIG.speed;
+            if (dist2 < mouse.radius * mouse.radius) {
+                const dx = this.baseX - this.x;
+                const dy = this.baseY - this.y;
 
-                // 🔥 SNAP + LOCK
-                if(Math.abs(bx)<0.1 && Math.abs(by)<0.1){
+                this.x += dx * CONFIG.returnSpeed;
+                this.y += dy * CONFIG.returnSpeed;
+
+                if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
                     this.fixed = true;
                     this.x = this.baseX;
                     this.y = this.baseY;
@@ -147,67 +184,82 @@ class Particle {
 // =======================
 // IMAGE
 // =======================
-const img = new Image();
-img.src = "image.png";
+const image = new Image();
+image.src = "image.png";
 
-function init(){
-    particles = [];
+function initParticles() {
+    particlesArray = [];
 
-    const temp = document.createElement("canvas");
-    const tctx = temp.getContext("2d");
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
 
-    temp.width = width;
-    temp.height = height;
+    tempCanvas.width = width;
+    tempCanvas.height = height;
 
-    const scale = Math.min(width/img.width, height/img.height)*0.8;
+    const scale = Math.min(
+        width / image.width,
+        height / image.height
+    ) * 0.8;
 
-    const w = img.width*scale;
-    const h = img.height*scale;
+    const imgWidth = image.width * scale;
+    const imgHeight = image.height * scale;
 
-    const ox = (width-w)/2;
-    const oy = (height-h)/2;
+    const offsetX = (width - imgWidth) / 2;
+    const offsetY = (height - imgHeight) / 2;
 
-    tctx.drawImage(img,ox,oy,w,h);
+    tempCtx.drawImage(image, offsetX, offsetY, imgWidth, imgHeight);
 
-    const data = tctx.getImageData(0,0,width,height).data;
+    const imageData = tempCtx.getImageData(0, 0, width, height).data;
 
-    for(let y=0;y<height;y+=CONFIG.gap){
-        for(let x=0;x<width;x+=CONFIG.gap){
+    for (let y = 0; y < height; y += CONFIG.gap) {
+        for (let x = 0; x < width; x += CONFIG.gap) {
+            const index = (y * width + x) * 4;
 
-            const i = (y*width + x)*4;
-            const a = data[i+3];
-            const bright = (data[i]+data[i+1]+data[i+2])/3;
+            const r = imageData[index];
+            const g = imageData[index + 1];
+            const b = imageData[index + 2];
+            const alpha = imageData[index + 3];
 
-            if(a>128 && bright<200 && particles.length<CONFIG.maxParticles){
-                particles.push(new Particle(x,y));
+            const brightness = (r + g + b) / 3;
+
+            if (
+                alpha > 128 &&
+                brightness < 200 &&
+                particlesArray.length < CONFIG.maxParticles
+            ) {
+                particlesArray.push(new Particle(x, y));
             }
         }
     }
 }
 
-img.onload = ()=>{
-    init();
+image.onload = () => {
+    initParticles();
     animate();
 };
 
+image.onerror = () => {
+    alert("Không tìm thấy file image.png!");
+};
+
 // =======================
-// LOOP
+// ANIMATE
 // =======================
-function animate(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "black";
 
-    for(let p of particles){
-        p.update();
+    for (let particle of particlesArray) {
+        particle.update();
     }
 
     requestAnimationFrame(animate);
 }
 
 // resize
-window.addEventListener("resize", ()=>{
-    resize();
-    if(img.complete) init();
+window.addEventListener("resize", () => {
+    resizeCanvas();
+    if (image.complete) initParticles();
 });
 </script>
 </body>
